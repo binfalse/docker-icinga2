@@ -7,9 +7,9 @@ chmod 777 /run/icinga2/
 
 # is the database already good to go or do we need to set it up?
 # if there is no table `icinga` we need to create it
-mysqlshow -u "$DBUSER" "-p$DBPASS" -h "$DBHOST" "$DBNAME" >/dev/null 2>&1
+rows=$(mysqlshow -u "$DBUSER" "-p$DBPASS" -h "$DBHOST" "$DBNAME" 2>/dev/null | wc -l)
 
-if [ "$?" != 0 ]
+if [ "$?" != 0 ] && [ "$rows" -gt 5 ]
 then
     # ok, this is the first run, so let's setup the database
     echo "CREATE DATABASE $DBNAME;" | mysql -u "$DBUSER" "-p$DBPASS" -h "$DBHOST"
