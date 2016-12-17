@@ -12,3 +12,4 @@ RUN yum -y update && \
 COPY run.sh /
 EXPOSE 5665
 
+ENTRYPOINT [ "/run.sh" ]
