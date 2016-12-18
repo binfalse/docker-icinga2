@@ -19,39 +19,36 @@ chmod 777 /run/icinga2/
 
 # check if database is up and running, credits go to:
 # https://github.com/dominionenterprises/tol-api-php/blob/master/tests/provisioning/set-env.sh
-if [ -z "${DBHOST}" ]
+if [ -n "${DBHOST}" ]
 then
-    echo "you need to link this container with a mysql db"
-    exit 1
+    [ -z "${DBPORT}" ] && export DBPORT=3306
+    
+    while ! exec 6<>/dev/tcp/"${DBHOST}"/"${DBPORT}"
+    do
+        echo "$(date) - still waiting for mysql at ${DBHOST}:${DBPORT} to come up"
+        sleep 1
+    done
+    
+    exec 6>&-
+    exec 6<&-
+    
+    # ok, databse is up.
+    
+    
+    # is the database already good to go or do we need to set it up?
+    # if there is no table `icinga` we need to create it
+    rows=$(mysqlshow -u "$DBUSER" "-p$DBPASS" -h "$DBHOST" -P "${DBPORT}" "$DBNAME" 2>/dev/null | wc -l)
+    
+    if [ "$?" != 0 ] || [ "$rows" -lt 10 ]
+    then
+        # ok, this is the first run, so let's setup the database
+        echo "installing database for icinga2-ido-mysql"
+        echo "CREATE DATABASE IF NOT EXISTS $DBNAME;" | mysql -u "$DBUSER" "-p$DBPASS" -h "$DBHOST" -P "${DBPORT}"
+        echo "SET @@global.sql_mode='MYSQL40';" | mysql -u root "-p$DBROOT" -h "$DBHOST" -P "${DBPORT}"
+        mysql -u "$DBUSER" "-p$DBPASS" -h "$DBHOST" -P "${DBPORT}" "$DBNAME" < /usr/share/icinga2-ido-mysql/schema/mysql.sql
+        echo "mysql scheme for icinga2-ido-mysql imported"
+    fi
 fi
-[ -z "${DBPORT}" ] && export DBPORT=3306
-
-while ! exec 6<>/dev/tcp/"${DBHOST}"/"${DBPORT}"
-do
-    echo "$(date) - still waiting for mysql at ${DBHOST}:${DBPORT} to come up"
-    sleep 1
-done
-
-exec 6>&-
-exec 6<&-
-
-# ok, databse is up.
-
-
-# is the database already good to go or do we need to set it up?
-# if there is no table `icinga` we need to create it
-rows=$(mysqlshow -u "$DBUSER" "-p$DBPASS" -h "$DBHOST" -P "${DBPORT}" "$DBNAME" 2>/dev/null | wc -l)
-
-if [ "$?" != 0 ] || [ "$rows" -lt 10 ]
-then
-    # ok, this is the first run, so let's setup the database
-    echo "installing database for icinga2-ido-mysql"
-    echo "CREATE DATABASE IF NOT EXISTS $DBNAME;" | mysql -u "$DBUSER" "-p$DBPASS" -h "$DBHOST" -P "${DBPORT}"
-    echo "SET @@global.sql_mode='MYSQL40';" | mysql -u root "-p$DBROOT" -h "$DBHOST" -P "${DBPORT}"
-    mysql -u "$DBUSER" "-p$DBPASS" -h "$DBHOST" -P "${DBPORT}" "$DBNAME" < /usr/share/icinga2-ido-mysql/schema/mysql.sql
-    echo "mysql scheme for icinga2-ido-mysql imported"
-fi
-
 
 # and we're going for an infinte while loop
 # while dumping icinga's log to std::out
